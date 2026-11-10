@@ -1,0 +1,26 @@
+[project]
+name = "fde-integration-hub"
+version = "0.1.0"
+requires-python = ">=3.13"
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.pytest.ini_options]
+markers = [
+  "db: needs the compose Postgres running (docker compose up -d db)",
+]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header"]
+
+[tool.ruff.lint.per-file-ignores]
+# The chaos runner is a script: long report-format lines, and polling loops are the point.
+"chaos/*" = ["E501", "ASYNC110"]
+# Test data lines (payloads, SQL, long asserts) read better unwrapped.
+"tests/*" = ["E501"]

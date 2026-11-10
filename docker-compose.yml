@@ -1,0 +1,22 @@
+name: fde-hub
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: hub
+      POSTGRES_PASSWORD: ${HUB_DB_PASSWORD:?set HUB_DB_PASSWORD in .env (copy .env.example)}
+      POSTGRES_DB: hub
+    ports:
+      - "127.0.0.1:5434:5432"  # loopback only: never expose the database to the network
+    volumes:
+      - hubdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hub -d hub"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  hubdata:
