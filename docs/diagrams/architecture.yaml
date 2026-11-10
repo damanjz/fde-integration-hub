@@ -1,0 +1,80 @@
+type: flow
+kicker: FDE Portfolio · 02
+title: How one order event reaches three systems, once in effect
+columns:
+  - stack:
+      - id: storefront
+        tag: Source
+        title: Storefront
+        points:
+          - Mock; signs each webhook
+          - Retries on any non-2xx
+      - id: operator
+        tag: Operators
+        title: Replay, skip, metrics
+        points:
+          - Admin key on every route
+          - Every action audited with actor and reason
+  - id: intake
+    tag: Intake
+    title: Webhook intake
+    points:
+      - Constant-time HMAC, 5-minute window, two secrets
+      - Duplicate event id answers 200
+      - Raw body stored once
+      - One outbox row per destination, one transaction
+  - id: core
+    core:
+      tag: Delivery engine
+      title: Outbox and workers
+      subtitle: No broker; Postgres is the queue
+      children:
+        - id: outbox
+          title: Outbox
+          points:
+            - Claim with FOR UPDATE SKIP LOCKED, lease, fenced result
+            - Per-order order; behind a dead row, later rows block
+            - Stale events marked superseded, never sent
+        - id: worker
+          title: Workers
+          style: dark
+          points:
+            - Map to each schema, deterministic delivery key
+            - Look up before resending after an unknown outcome
+            - Retry with jitter; 4xx is dead at once
+  - id: gate
+    tag: Limits
+    title: Gate and client
+    points:
+      - Token bucket, Retry-After and circuit breaker in one Postgres row
+      - Each 429 cuts the rate
+      - Token refresh on 401
+      - Every call recorded
+  - stack:
+      - id: warehouse
+        tag: Destination
+        title: Warehouse
+        points:
+          - OAuth2, 5 req/s, no idempotency
+          - Lookup by external_ref
+      - id: helpdesk
+        tag: Destination
+        title: Helpdesk
+        points:
+          - Idempotency-Key kept 24 h
+      - id: accounting
+        tag: Destination
+        title: Accounting
+        points:
+          - Duplicate invoice number answers 409
+band:
+  title: Postgres
+  text: events · deliveries · delivery_attempts · delivery_audit · destination_state · counters
+  right: "1,476 deliveries: 0 lost, 0 duplicated"
+edges:
+  - {from: storefront, to: intake}
+  - {from: intake, to: core}
+  - {from: core, to: gate}
+  - {from: gate, to: warehouse}
+  - {from: operator, to: band, dashed: true}
+  - {from: core, to: band, dashed: true}

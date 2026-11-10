@@ -1,0 +1,27 @@
+type: trace
+kicker: FDE Portfolio · 02
+title: One order.paid event, from webhook to three systems
+lanes:
+  - {id: store, label: Storefront}
+  - {id: intake, label: Webhook intake}
+  - {id: pg, label: Postgres outbox}
+  - {id: worker, label: Worker, hot: true}
+  - {id: gate, label: Gate + client}
+  - {id: wh, label: Warehouse}
+  - {id: other, label: "Helpdesk + Accounting"}
+steps:
+  - {from: store, to: intake, text: "POST evt_1_00042, order.paid, order LF-10042, X-Larkfield-Signature"}
+  - {from: intake, to: pg, text: "HMAC verified; raw event + 3 delivery rows in one transaction", tone: muted}
+  - {from: intake, to: store, text: "200 accepted", tone: accent}
+  - {from: store, to: intake, text: "same event id sent again (a retry)"}
+  - {from: intake, to: store, text: "200 duplicate; nothing stored", tone: accent}
+  - {from: worker, to: pg, text: "claim warehouse row, lease; supersede check: no later event", tone: muted}
+  - {from: worker, to: gate, text: "map to warehouse schema; pass_gate: token and breaker"}
+  - {from: gate, to: wh, text: "POST prepare, external_ref = delivery key"}
+  - {from: wh, to: gate, text: "503"}
+  - {from: worker, to: pg, text: "mark_retry: jittered backoff, reconcile flagged", tone: muted}
+  - {from: gate, to: wh, text: "later: GET /shipments?external_ref finds nothing; resend"}
+  - {from: wh, to: gate, text: "201 created", tone: accent}
+  - {from: worker, to: pg, text: "mark_delivered under the lease token", tone: muted}
+  - {from: worker, to: other, text: "helpdesk (Idempotency-Key) and accounting (invoice number): delivered", tone: accent}
+note: "Event and order ids are illustrative, in the chaos run's format. Grey arrows are Postgres reads and writes. Helpdesk and accounting rows run in parallel, each with its own gate."
